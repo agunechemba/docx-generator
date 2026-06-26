@@ -8,86 +8,59 @@
 </head>
 <body>
     <div class="container">
-        <h1>
-            <span>📄</span> Document Generator
-        </h1>
-        <p class="subtitle">Upload template + data → Generate documents → Download</p>
+        <h1><span>📄</span> Document Generator</h1>
+        <p class="subtitle">Upload template + data → Generate documents</p>
 
         <div id="appInitOverlay" class="status loading show" style="margin-bottom: 20px;">
-            ⏳ Connecting to core framework dependencies...
+            ⏳ Initializing processing engines securely...
         </div>
 
         <div class="upload-grid">
             <div class="upload-section" id="templateDrop">
                 <span class="icon">📝</span>
                 <label for="templateUpload">
-                    <strong>Upload Template</strong>
-                    <div style="font-weight:normal;color:#718096;font-size:13px;margin-top:4px;">
-                        .docx file with placeholders
-                    </div>
+                    <strong>Upload Template (.docx)</strong>
                 </label>
                 <input type="file" id="templateUpload" accept=".docx" disabled>
-                <div id="templateStatus" class="file-status">Waiting for system load...</div>
+                <div id="templateStatus" class="file-status">Waiting for engine...</div>
             </div>
 
             <div class="upload-section" id="dataDrop">
                 <span class="icon">📊</span>
                 <label for="dataUpload">
-                    <strong>Upload Data</strong>
-                    <div style="font-weight:normal;color:#718096;font-size:13px;margin-top:4px;">
-                        .csv or .xlsx with column headers
-                    </div>
+                    <strong>Upload Data (.csv, .xlsx)</strong>
                 </label>
                 <input type="file" id="dataUpload" accept=".csv,.xlsx" disabled>
-                <div id="dataStatus" class="file-status">Waiting for system load...</div>
+                <div id="dataStatus" class="file-status">Waiting for engine...</div>
             </div>
         </div>
 
-        <p style="font-weight:600;color:#2d3748;margin-bottom:10px;font-size:15px;">
-            Choose how to download:
-        </p>
+        <p style="font-weight:600;color:#2d3748;margin-bottom:10px;font-size:15px;">Choose output format:</p>
         <div class="download-options">
             <label class="option-card selected" id="optionMerged">
                 <input type="radio" name="downloadMode" value="merged" checked>
                 <div class="icon">📚</div>
                 <h3>Single Merged Document</h3>
-                <p>All documents combined into ONE file</p>
                 <span class="badge">One .docx file</span>
             </label>
             <label class="option-card" id="optionZIP">
                 <input type="radio" name="downloadMode" value="zip">
                 <div class="icon">📦</div>
                 <h3>ZIP Archive</h3>
-                <p>Each document as a separate file</p>
                 <span class="badge">One .zip file</span>
             </label>
         </div>
 
-        <button class="generate-btn" id="generateBtn" disabled>
-            🔒 Engine Offline
-        </button>
+        <button class="generate-btn" id="generateBtn" disabled>🚀 Initialize App</button>
 
         <div class="progress-section" id="progressSection">
-            <div class="progress-bar">
-                <div class="fill" id="progressFill"></div>
-            </div>
-            <div class="progress-text">
-                <span id="progressLabel">Processing...</span>
-                <span id="progressPercent">0%</span>
-            </div>
+            <div class="progress-bar"><div class="fill" id="progressFill"></div></div>
+            <div class="progress-text"><span id="progressLabel">Processing...</span><span id="progressPercent">0%</span></div>
         </div>
-
         <div class="status" id="status"></div>
-
-        <div class="stats" id="stats">
-            <div>📋 Records: <span id="recordCount">0</span></div>
-            <div>📄 Documents: <span id="docCount">0</span></div>
-            <div>📁 Output: <span id="outputType">Merged</span></div>
-        </div>
-
         <button class="clear-btn" id="clearStorageBtn" style="display:none;">🗑️ Clear Cached Files</button>
     </div>
 
-    <script src="script.js"></script>
+    <script type="module" src="script.js"></script>
 </body>
 </html>
