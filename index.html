@@ -4,20 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bulk Document Generator</title>
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pizzip/3.1.4/pizzip.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.42.0/docxtemplater.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <h1>
-            <span>📄</span> Docx Generator
+            <span>📄</span> Document Generator
         </h1>
         <p class="subtitle">Upload template + data → Generate documents → Download</p>
+
+        <div id="appInitOverlay" class="status loading show" style="margin-bottom: 20px;">
+            ⏳ Connecting to core framework dependencies...
+        </div>
 
         <div class="upload-grid">
             <div class="upload-section" id="templateDrop">
@@ -28,8 +26,8 @@
                         .docx file with placeholders
                     </div>
                 </label>
-                <input type="file" id="templateUpload" accept=".docx">
-                <div id="templateStatus" class="file-status">No file selected</div>
+                <input type="file" id="templateUpload" accept=".docx" disabled>
+                <div id="templateStatus" class="file-status">Waiting for system load...</div>
             </div>
 
             <div class="upload-section" id="dataDrop">
@@ -40,8 +38,8 @@
                         .csv or .xlsx with column headers
                     </div>
                 </label>
-                <input type="file" id="dataUpload" accept=".csv,.xlsx">
-                <div id="dataStatus" class="file-status">No file selected</div>
+                <input type="file" id="dataUpload" accept=".csv,.xlsx" disabled>
+                <div id="dataStatus" class="file-status">Waiting for system load...</div>
             </div>
         </div>
 
@@ -66,7 +64,7 @@
         </div>
 
         <button class="generate-btn" id="generateBtn" disabled>
-            🚀 Generate Documents
+            🔒 Engine Offline
         </button>
 
         <div class="progress-section" id="progressSection">

@@ -73,7 +73,7 @@ h1 {
 .file-status {
     margin-top: 10px;
     font-size: 13px;
-    color: #48bb78;
+    color: #4a5568;
     font-weight: 500;
     word-break: break-all;
 }
@@ -155,7 +155,6 @@ h1 {
 }
 
 .status {
-    margin-top: 20px;
     padding: 16px;
     border-radius: 10px;
     text-align: center;

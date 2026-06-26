@@ -1,5 +1,64 @@
 // ============================================
-// STATE MANAGEMENT
+// ASYNCHRONOUS DEPENDENCY ENGINE LOADER
+// ============================================
+const LIBRARIES = [
+    { name: 'XLSX', primary: 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', fallback: 'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js' },
+    { name: 'PizZip', primary: 'https://cdnjs.cloudflare.com/ajax/libs/pizzip/3.1.4/pizzip.min.js', fallback: 'https://unpkg.com/pizzip@3.1.4/dist/pizzip.min.js' },
+    { name: 'Docxtemplater', primary: 'https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.42.0/docxtemplater.js', fallback: 'https://unpkg.com/docxtemplater@3.42.0/dist/docxtemplater.js' },
+    { name: 'saveAs', primary: 'https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js', fallback: 'https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js' }
+];
+
+function loadScript(lib) {
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = lib.primary;
+        script.crossOrigin = "anonymous";
+        script.referrerPolicy = "no-referrer";
+        
+        script.onload = () => resolve();
+        script.onerror = () => {
+            console.warn(`Primary CDN failed for ${lib.name}. Pulling fallback mirror...`);
+            const fallbackScript = document.createElement('script');
+            fallbackScript.src = lib.fallback;
+            fallbackScript.onload = () => resolve();
+            fallbackScript.onerror = () => reject(new Error(`Failed to map runtime allocations for ${lib.name}`));
+            document.head.appendChild(fallbackScript);
+        };
+        document.head.appendChild(script);
+    });
+}
+
+// Sequential Execution Wrapper to prevent race conditions during runtime hook
+async function initializeDependencies() {
+    const overlay = document.getElementById('appInitOverlay');
+    try {
+        for (const lib of LIBRARIES) {
+            await loadScript(lib);
+        }
+        // Verify globals are populated
+        if (typeof XLSX === 'undefined' || typeof PizZip === 'undefined' || typeof Docxtemplater === 'undefined') {
+            throw new Error("Context isolation check failed. Dependencies missing from Window stack.");
+        }
+        
+        overlay.classList.remove('show');
+        overlay.style.display = 'none';
+        
+        // Unlock System UI inputs
+        templateInput.disabled = false;
+        dataInput.disabled = false;
+        templateStatus.textContent = 'No file selected';
+        dataStatus.textContent = 'No file selected';
+        
+        // Wake up LocalStorage restoration routine
+        loadSavedState();
+    } catch (err) {
+        overlay.className = "status error show";
+        overlay.textContent = `❌ Dependency Bootstrap Failure: ${err.message}. Please verify internet access.`;
+    }
+}
+
+// ============================================
+// SYSTEM RUNTIME STATE
 // ============================================
 let templateBuffer = null;
 let templateName = 'document';
@@ -7,7 +66,7 @@ let csvData = [];
 let downloadMode = 'merged';
 
 // ============================================
-// DOM ELEMENTS
+// DOM ELEMENTS REFERENCE
 // ============================================
 const templateInput = document.getElementById('templateUpload');
 const dataInput = document.getElementById('dataUpload');
@@ -24,11 +83,10 @@ const recordCount = document.getElementById('recordCount');
 const docCount = document.getElementById('docCount');
 const outputType = document.getElementById('outputType');
 const clearStorageBtn = document.getElementById('clearStorageBtn');
-
 const templateDrop = document.getElementById('templateDrop');
 const dataDrop = document.getElementById('dataDrop');
 
-// Setup download selection options card triggers
+// Setup Option Cards
 const optionCards = document.querySelectorAll('.option-card');
 optionCards.forEach(card => {
     card.addEventListener('click', function() {
@@ -44,7 +102,7 @@ optionCards.forEach(card => {
 });
 
 // ============================================
-// UTILITY FUNCTIONS FOR BINARY STORAGE
+// BINARY TRANSFORMATION LAYERS
 // ============================================
 function arrayBufferToBase64(buffer) {
     let binary = '';
@@ -67,7 +125,7 @@ function base64ToArrayBuffer(base64) {
 }
 
 // ============================================
-// LOCAL STORAGE ENGINE
+// STATE RESTORE MANAGER
 // ============================================
 function loadSavedState() {
     try {
@@ -91,6 +149,7 @@ function loadSavedState() {
             templateName = savedTemplateName;
             templateBuffer = base64ToArrayBuffer(savedTemplateBase64);
             templateStatus.textContent = `💾 Recovered: ${templateName}.docx`;
+            templateStatus.className = 'file-status';
             templateDrop.classList.add('has-file');
             clearStorageBtn.style.display = 'block';
         }
@@ -99,7 +158,8 @@ function loadSavedState() {
         const savedDataFilename = localStorage.getItem('docGen_dataFilename') || 'cached_data';
         if (savedCsvData) {
             csvData = JSON.parse(savedCsvData);
-            dataStatus.textContent = `💾 Recovered: ${csvData.length} rows from ${savedDataFilename}`;
+            dataStatus.textContent = `💾 Recovered: ${csvData.length} records from ${savedDataFilename}`;
+            dataStatus.className = 'file-status';
             dataDrop.classList.add('has-file');
             recordCount.textContent = csvData.length;
             docCount.textContent = csvData.length;
@@ -108,7 +168,7 @@ function loadSavedState() {
         }
         updateUI();
     } catch (e) {
-        console.error("Failed to restore saved local session state:", e);
+        console.error("Local recovery storage cache processing failed:", e);
     }
 }
 
@@ -118,14 +178,14 @@ clearStorageBtn.addEventListener('click', function() {
 });
 
 // ============================================
-// FILE HANDLERS
+// DATA PIPELINE HANDLERS
 // ============================================
 templateInput.addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (!file) return;
 
     if (!file.name.endsWith('.docx')) {
-        templateStatus.textContent = '❌ Please upload a .docx file';
+        templateStatus.textContent = '❌ Please upload a valid .docx structure file';
         templateStatus.className = 'file-status error';
         return;
     }
@@ -144,7 +204,7 @@ templateInput.addEventListener('change', function(e) {
             localStorage.setItem('docGen_templateName', templateName);
             clearStorageBtn.style.display = 'block';
         } catch(err) {
-            console.warn("Template file is too large to fully cache in LocalStorage quota limits.");
+            console.warn("Storage limits saturated. Template safe context bypassed parsing compression.");
         }
         updateUI();
     };
@@ -162,7 +222,7 @@ dataInput.addEventListener('change', function(e) {
             if (file.name.endsWith('.csv')) {
                 const text = new TextDecoder().decode(event.target.result);
                 const lines = text.split('\n').filter(line => line.trim());
-                if (lines.length < 2) throw new Error('CSV must have headers and rows');
+                if (lines.length < 2) throw new Error('Data context structural mismatch missing attributes.');
                 const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
                 csvData = lines.slice(1).map(line => {
                     const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
@@ -177,7 +237,7 @@ dataInput.addEventListener('change', function(e) {
                 csvData = XLSX.utils.sheet_to_json(firstSheet);
             }
 
-            if (csvData.length === 0) throw new Error('No data rows found');
+            if (csvData.length === 0) throw new Error('Void matrix records detected.');
 
             dataStatus.textContent = `✅ ${csvData.length} records loaded from ${file.name}`;
             dataStatus.className = 'file-status';
@@ -191,7 +251,7 @@ dataInput.addEventListener('change', function(e) {
                 localStorage.setItem('docGen_dataFilename', file.name);
                 clearStorageBtn.style.display = 'block';
             } catch(err) {
-                console.warn("Dataset exceeds maximum browser LocalStorage quota capacity.");
+                console.warn("Large dataset mapping bypassed LocalStorage allocation bounds.");
             }
             updateUI();
         } catch (error) {
@@ -202,7 +262,7 @@ dataInput.addEventListener('change', function(e) {
     reader.readAsArrayBuffer(file);
 });
 
-// Drag and Drop listeners
+// Drag & Drop Configuration
 [templateDrop, dataDrop].forEach(section => {
     section.addEventListener('dragover', function(e) {
         e.preventDefault();
@@ -232,19 +292,19 @@ function updateUI() {
     if (ready) {
         generateBtn.textContent = `🚀 Generate ${downloadMode === 'merged' ? 'Merged Document' : 'ZIP Archive'}`;
     } else {
-        generateBtn.textContent = '🚀 Generate Documents';
+        // Checking state tracking bounds for status indicators
+        if(typeof XLSX === 'undefined') {
+            generateBtn.textContent = '🔒 Engine Offline';
+        } else {
+            generateBtn.textContent = '🚀 Generate Documents';
+        }
     }
 }
 
 // ============================================
-// CORE BATCH GENERATION WORKFLOW
+// PROCESSING EXECUTION PIEPLINE
 // ============================================
 function generateDocuments() {
-    if (typeof PizZip === 'undefined' || typeof Docxtemplater === 'undefined') {
-        showStatus('❌ Error: Framework parsing runtimes failed loading dependencies.', 'error');
-        return;
-    }
-
     generateBtn.disabled = true;
     showStatus('Processing generation tasks...', 'loading');
     progressSection.classList.add('show');
@@ -307,6 +367,7 @@ function generateMergedFallback(total) {
     saveAs(outBlob, `${templateName}_merged.docx`);
 }
 
+// Fallback logic for single documents bundled in zipped directories
 function generateZIP(total) {
     const exportZip = new PizZip();
 
@@ -335,5 +396,6 @@ function showStatus(message, type = 'info') {
     statusDiv.className = `status show ${type}`;
 }
 
-document.addEventListener('DOMContentLoaded', loadSavedState);
+// Fire async loader immediately when DOM processing is mapped
+document.addEventListener('DOMContentLoaded', initializeDependencies);
 generateBtn.addEventListener('click', generateDocuments);
