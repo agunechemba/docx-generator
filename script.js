@@ -1,22 +1,10 @@
-// ============================================
-// IMMUTABLE ES-MODULE RUNTIME IMPORTS
-// ============================================
-import PizZip from 'https://esm.sh/pizzip@3.1.4';
-import Docxtemplater from 'https://esm.sh/docxtemplater@3.42.0';
-import * as XLSX from 'https://esm.sh/xlsx@0.18.5';
-import { saveAs } from 'https://esm.sh/file-saver@2.0.5';
-
-// ============================================
-// CORE DATA STATE
-// ============================================
+// Global State
 let templateBuffer = null;
 let templateName = 'document';
 let csvData = [];
 let downloadMode = 'merged';
 
-// ============================================
-// ELEMENT MAPS
-// ============================================
+// Element DOM Mapping
 const templateInput = document.getElementById('templateUpload');
 const dataInput = document.getElementById('dataUpload');
 const templateStatus = document.getElementById('templateStatus');
@@ -27,89 +15,11 @@ const progressSection = document.getElementById('progressSection');
 const progressFill = document.getElementById('progressFill');
 const progressLabel = document.getElementById('progressLabel');
 const progressPercent = document.getElementById('progressPercent');
-const clearStorageBtn = document.getElementById('clearStorageBtn');
 const templateDrop = document.getElementById('templateDrop');
 const dataDrop = document.getElementById('dataDrop');
-const overlay = document.getElementById('appInitOverlay');
 const optionCards = document.querySelectorAll('.option-card');
 
-// ============================================
-// BASE64 TRANSFORMS FOR LOCAL STORAGE
-// ============================================
-function bufferToBase64(buf) {
-    let binary = '';
-    const bytes = new Uint8Array(buf);
-    for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
-}
-
-function base64ToBuffer(b64) {
-    const binStr = atob(b64);
-    const bytes = new Uint8Array(binStr.length);
-    for (let i = 0; i < binStr.length; i++) {
-        bytes[i] = binStr.charCodeAt(i);
-    }
-    return bytes.buffer;
-}
-
-// ============================================
-// APPLICATION LIFECYCLE INITIALIZER
-// ============================================
-function initApplication() {
-    try {
-        // Hide initialization guard screen
-        overlay.classList.remove('show');
-        overlay.style.display = 'none';
-
-        // Unlock input interfaces
-        templateInput.disabled = false;
-        dataInput.disabled = false;
-        templateStatus.textContent = 'No file selected';
-        dataStatus.textContent = 'No file selected';
-
-        // Read LocalStorage Persistence Engine
-        loadSavedState();
-    } catch (err) {
-        overlay.className = "status error show";
-        overlay.textContent = `🚨 Framework State Error: ${err.message}`;
-    }
-}
-
-function loadSavedState() {
-    const savedMode = localStorage.getItem('docGen_downloadMode');
-    if (savedMode) {
-        downloadMode = savedMode;
-        optionCards.forEach(card => {
-            const radio = card.querySelector('input[type="radio"]');
-            const isTarget = radio.value === downloadMode;
-            card.classList.toggle('selected', isTarget);
-            if (isTarget) radio.checked = true;
-        });
-    }
-
-    const savedTplName = localStorage.getItem('docGen_templateName');
-    const savedTplB64 = localStorage.getItem('docGen_templateBuffer');
-    if (savedTplName && savedTplB64) {
-        templateName = savedTplName;
-        templateBuffer = base64ToBuffer(savedTplB64);
-        templateStatus.textContent = `💾 Recovered: ${templateName}.docx`;
-        templateDrop.classList.add('has-file');
-        clearStorageBtn.style.display = 'block';
-    }
-
-    const savedCsv = localStorage.getItem('docGen_csvData');
-    const savedCsvName = localStorage.getItem('docGen_dataFilename') || 'cached_data';
-    if (savedCsv) {
-        csvData = JSON.parse(savedCsv);
-        dataStatus.textContent = `💾 Recovered: ${csvData.length} records from ${savedCsvName}`;
-        dataDrop.classList.add('has-file');
-        clearStorageBtn.style.display = 'block';
-    }
-    updateUI();
-}
-
+// Handle Mode Selector Buttons
 optionCards.forEach(card => {
     card.addEventListener('click', function() {
         optionCards.forEach(c => c.classList.remove('selected'));
@@ -117,38 +27,23 @@ optionCards.forEach(card => {
         const radio = this.querySelector('input[type="radio"]');
         radio.checked = true;
         downloadMode = radio.value;
-        localStorage.setItem('docGen_downloadMode', downloadMode);
         updateUI();
     });
 });
 
-clearStorageBtn.addEventListener('click', () => {
-    localStorage.clear();
-    location.reload();
-});
-
-// ============================================
-// EVENT & DATA PIPELINE MANAGEMENT
-// ============================================
+// Template Upload Processing
 templateInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     templateBuffer = await file.arrayBuffer();
     templateName = file.name.replace('.docx', '');
-    templateStatus.textContent = `✅ ${file.name}`;
+    templateStatus.textContent = `✅ Loaded: ${file.name}`;
     templateDrop.classList.add('has-file');
-
-    try {
-        localStorage.setItem('docGen_templateBuffer', bufferToBase64(templateBuffer));
-        localStorage.setItem('docGen_templateName', templateName);
-        clearStorageBtn.style.display = 'block';
-    } catch(err) {
-        console.warn("Template tracking skipped cache storage limits.");
-    }
     updateUI();
 });
 
+// Spreadsheet/CSV Upload Processing
 dataInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -165,18 +60,10 @@ dataInput.addEventListener('change', async (e) => {
             csvData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
         }
 
-        if (csvData.length === 0) throw new Error('Data file is empty.');
+        if (csvData.length === 0) throw new Error('File contains no records.');
 
-        dataStatus.textContent = `✅ ${csvData.length} records loaded`;
+        dataStatus.textContent = `✅ Loaded: ${csvData.length} rows`;
         dataDrop.classList.add('has-file');
-
-        try {
-            localStorage.setItem('docGen_csvData', JSON.stringify(csvData));
-            localStorage.setItem('docGen_dataFilename', file.name);
-            clearStorageBtn.style.display = 'block';
-        } catch(err) {
-            console.warn("Dataset exceeded quota memory constraints.");
-        }
         updateUI();
     } catch (err) {
         dataStatus.textContent = `❌ Error: ${err.message}`;
@@ -190,27 +77,18 @@ function updateUI() {
     generateBtn.textContent = ready ? '🚀 Generate Documents' : '🚀 Upload Files to Start';
 }
 
-// Drag & Drop
-[templateDrop, dataDrop].forEach(section => {
-    section.addEventListener('dragover', (e) => { e.preventDefault(); section.style.background = '#f0f4ff'; });
-    section.addEventListener('dragleave', () => { section.style.background = section.classList.contains('has-file') ? '#f0fff4' : '#f7fafc'; });
-    section.addEventListener('drop', (e) => {
-        e.preventDefault();
-        section.style.background = '#f7fafc';
-        const input = section.querySelector('input[type="file"]');
-        if (e.dataTransfer.files.length) {
-            input.files = e.dataTransfer.files;
-            input.dispatchEvent(new Event('change'));
-        }
-    });
-});
-
-// ============================================
-// PROCESSING INTERFACES
-// ============================================
+// Processing Logic Loop
 function generateDocuments() {
+    // Crucial safety fallback mapping to the correct window key name
+    const DocEngine = window.Docxtemplater || window.docxtemplater;
+    
+    if (!DocEngine || !window.PizZip || !window.saveAs) {
+        showStatus('❌ Critical dependency error. Please refresh your page.', 'error');
+        return;
+    }
+
     generateBtn.disabled = true;
-    showStatus('Compiling files...', 'loading');
+    showStatus('Processing generation tasks...', 'loading');
     progressSection.classList.add('show');
     progressFill.style.width = '0%';
 
@@ -223,7 +101,7 @@ function generateDocuments() {
 
                 for (let i = 0; i < total; i++) {
                     const zip = new PizZip(templateBuffer);
-                    const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
+                    const doc = new DocEngine(zip, { paragraphLoop: true, linebreaks: true });
                     doc.render(csvData[i]);
                     const docXml = doc.getZip().file('word/document.xml').asText();
 
@@ -250,7 +128,7 @@ function generateDocuments() {
                 for (let i = 0; i < total; i++) {
                     const row = csvData[i];
                     const zip = new PizZip(templateBuffer);
-                    const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
+                    const doc = new DocEngine(zip, { paragraphLoop: true, linebreaks: true });
                     doc.render(row);
 
                     const outBlob = doc.getZip().generate({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
@@ -264,7 +142,7 @@ function generateDocuments() {
             }
             showStatus('✅ Documents created successfully!', 'success');
         } catch (error) {
-            showStatus(`❌ Processing Error: ${error.message}`, 'error');
+            showStatus(`❌ Error: ${error.message}`, 'error');
         } finally {
             generateBtn.disabled = false;
             updateUI();
@@ -276,7 +154,7 @@ function updateProgress(current, total) {
     const pct = Math.round((current / total) * 100);
     progressFill.style.width = `${pct}%`;
     progressPercent.textContent = `${pct}%`;
-    progressLabel.textContent = `Processing document ${current} of ${total}`;
+    progressLabel.textContent = `Processing ${current} of ${total}`;
 }
 
 function showStatus(msg, type) {
@@ -284,6 +162,19 @@ function showStatus(msg, type) {
     statusDiv.className = `status show ${type}`;
 }
 
-// Run immediately
-initApplication();
+// Drag & Drop Listeners
+[templateDrop, dataDrop].forEach(section => {
+    section.addEventListener('dragover', (e) => { e.preventDefault(); section.style.background = '#f0f4ff'; });
+    section.addEventListener('dragleave', () => { section.style.background = section.classList.contains('has-file') ? '#f0fff4' : '#f7fafc'; });
+    section.addEventListener('drop', (e) => {
+        e.preventDefault();
+        section.style.background = '#f7fafc';
+        const input = section.querySelector('input[type="file"]');
+        if (e.dataTransfer.files.length) {
+            input.files = e.dataTransfer.files;
+            input.dispatchEvent(new Event('change'));
+        }
+    });
+});
+
 generateBtn.addEventListener('click', generateDocuments);
