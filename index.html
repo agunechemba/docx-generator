@@ -3,61 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bulk Document Generator</title>
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pizzip/3.1.4/pizzip.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.42.0/docxtemplater.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-
+    <title>Bulk Document Generator (Client-Side)</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh; padding: 40px 20px;
-            display: flex; justify-content: center; align-items: center;
+        .drop-zone--over {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
         }
-        .container {
-            max-width: 600px; width: 100%; background: white; padding: 40px; border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.25);
-        }
-        h1 { color: #1a202c; font-size: 26px; margin-bottom: 5px; }
-        .subtitle { color: #718096; margin-bottom: 25px; font-size: 14px; }
-        .upload-section {
-            border: 2px dashed #e2e8f0; border-radius: 12px; padding: 20px; text-align: center; background: #f7fafc; margin-bottom: 15px; cursor: pointer; transition: background 0.2s;
-        }
-        .upload-section.has-file { border-color: #48bb78; background: #f0fff4; }
-        .upload-section label { display: block; cursor: pointer; font-weight: 600; color: #2d3748; }
-        .upload-section input[type="file"] { display: none; }
-        .file-status { margin-top: 5px; font-size: 13px; color: #4a5568; }
-        .generate-btn {
-            width: 100%; padding: 16px; background: #667eea; color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 15px;
-        }
-        .generate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .status { padding: 12px; border-radius: 8px; text-align: center; font-weight: 500; margin-top: 15px; display: none; font-size: 14px; background: #ebf8ff; color: #2b6cb0; }
-        .status.error { background: #fff5f5; color: #9b2c2c; }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1>📄 Document Generator</h1>
-        <p class="subtitle">Upload template + data → Generate documents</p>
+<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col justify-between font-sans">
 
-        <div class="upload-section" id="templateDrop">
-            <label for="templateUpload">📝 Step 1: Upload Template (.docx)</label>
-            <input type="file" id="templateUpload" accept=".docx">
-            <div id="templateStatus" class="file-status">No file selected</div>
+    <div class="container mx-auto px-4 py-10 max-w-4xl">
+        <header class="text-center mb-10">
+            <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight sm:text-4xl">
+                Bulk Document Generator
+            </h1>
+            <p class="mt-3 text-lg text-gray-500">
+                Generate custom .docx templates entirely in your browser. 100% private, secure, and backend-free.
+            </p>
+        </header>
+
+        <div class="bg-white rounded-2xl shadow-xl p-6 md:p-8 space-y-8">
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-2">
+                    <label class="block text-sm font-semibold text-gray-700">1. Upload Word Template (.docx)</label>
+                    <div id="dropzone-docx" class="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:bg-gray-50 transition-all min-h-[160px]">
+                        <svg class="w-10 h-10 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        <span id="label-docx" class="text-sm font-medium text-gray-600">Drag & drop or click to upload template</span>
+                        <span id="file-name-docx" class="text-xs text-blue-600 mt-2 font-semibold hidden"></span>
+                        <input type="file" id="input-docx" accept=".docx" class="hidden">
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="block text-sm font-semibold text-gray-700">2. Upload Excel Data (.xlsx)</label>
+                    <div id="dropzone-xlsx" class="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:bg-gray-50 transition-all min-h-[160px]">
+                        <svg class="w-10 h-10 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        <span id="label-xlsx" class="text-sm font-medium text-gray-600">Drag & drop or click to upload data</span>
+                        <span id="file-name-xlsx" class="text-xs text-green-600 mt-2 font-semibold hidden"></span>
+                        <input type="file" id="input-xlsx" accept=".xlsx" class="hidden">
+                    </div>
+                </div>
+            </div>
+
+            <div id="status-panel" class="hidden bg-gray-50 rounded-xl p-4 border border-gray-200">
+                <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Parsed Metadata</h3>
+                <div class="grid grid-cols-2 gap-4 mt-2 text-sm text-gray-600">
+                    <div>Rows Detected: <span id="meta-rows" class="font-bold text-gray-900">0</span></div>
+                    <div>Columns/Keys: <span id="meta-keys" class="font-bold text-gray-900">None</span></div>
+                </div>
+            </div>
+
+            <hr class="border-gray-200">
+
+            <div class="space-y-4">
+                <label class="block text-sm font-semibold text-gray-700">3. Select Output Mode & Generate</label>
+                
+                <div class="max-w-md space-y-1">
+                    <label for="naming-column" class="block text-xs font-medium text-gray-500">Dynamic File Naming Key (For ZIP generation)</label>
+                    <input type="text" id="naming-column" placeholder="e.g., Name" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                    <button id="btn-merge" disabled class="flex flex-col items-start p-5 border-2 border-gray-200 rounded-xl text-left hover:border-blue-500 hover:bg-blue-50/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed group">
+                        <span class="flex items-center space-x-2 text-blue-600 font-bold">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                            <span>Single Merged Document</span>
+                        </span>
+                        <span class="text-xs text-gray-500 mt-2">Combines every row into one contiguous file separated by formal page breaks.</span>
+                    </button>
+
+                    <button id="btn-zip" disabled class="flex flex-col items-start p-5 border-2 border-gray-200 rounded-xl text-left hover:border-purple-500 hover:bg-purple-50/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed group">
+                        <span class="flex items-center space-x-2 text-purple-600 font-bold">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
+                            <span>ZIP Archive</span>
+                        </span>
+                        <span class="text-xs text-gray-500 mt-2">Outputs unique independent documents bundled neatly into a compressed .zip folder.</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="progress-container" class="hidden space-y-2 pt-2">
+                <div class="flex justify-between items-center text-xs font-semibold text-gray-600">
+                    <span id="progress-status">Processing payload...</span>
+                    <span id="progress-percent">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div id="progress-bar" class="bg-blue-600 h-2 rounded-full transition-all duration-150" style="width: 0%"></div>
+                </div>
+            </div>
+
         </div>
-
-        <div class="upload-section" id="dataDrop">
-            <label for="dataUpload">📊 Step 2: Upload Data (.csv, .xlsx)</label>
-            <input type="file" id="dataUpload" accept=".csv,.xlsx">
-            <div id="dataStatus" class="file-status">No file selected</div>
-        </div>
-
-        <button class="generate-btn" id="generateBtn" disabled>🚀 Upload Files to Start</button>
-        <div class="status" id="status"></div>
     </div>
+
+    <footer class="text-center py-6 text-xs text-gray-400 border-t border-gray-100 bg-white">
+        Secure Client-Side Engine • No Document Data Ever Leaves Your Machine.
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pizzip/3.1.4/pizzip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.48.0/docxtemplater.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
     <script src="script.js"></script>
 </body>
