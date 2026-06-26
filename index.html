@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bulk Document Generator</title>
     
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://unpkg.com/pizzip@3.1.4/dist/pizzip.min.js"></script>
-    <script src="https://unpkg.com/docxtemplater@3.42.0/dist/docxtemplater.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pizzip/3.1.4/pizzip.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.42.0/docxtemplater.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -24,8 +24,9 @@
         h1 { color: #1a202c; font-size: 26px; margin-bottom: 5px; }
         .subtitle { color: #718096; margin-bottom: 25px; font-size: 14px; }
         .upload-section {
-            border: 2px dashed #e2e8f0; border-radius: 12px; padding: 20px; text-align: center; background: #f7fafc; margin-bottom: 15px; cursor: pointer;
+            border: 2px dashed #e2e8f0; border-radius: 12px; padding: 20px; text-align: center; background: #f7fafc; margin-bottom: 15px; cursor: pointer; transition: background 0.2s;
         }
+        .upload-section.has-file { border-color: #48bb78; background: #f0fff4; }
         .upload-section label { display: block; cursor: pointer; font-weight: 600; color: #2d3748; }
         .upload-section input[type="file"] { display: none; }
         .file-status { margin-top: 5px; font-size: 13px; color: #4a5568; }
@@ -34,6 +35,7 @@
         }
         .generate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .status { padding: 12px; border-radius: 8px; text-align: center; font-weight: 500; margin-top: 15px; display: none; font-size: 14px; background: #ebf8ff; color: #2b6cb0; }
+        .status.error { background: #fff5f5; color: #9b2c2c; }
     </style>
 </head>
 <body>
@@ -53,7 +55,7 @@
             <div id="dataStatus" class="file-status">No file selected</div>
         </div>
 
-        <button class="generate-btn" id="generateBtn" disabled>🚀 Generate Documents</button>
+        <button class="generate-btn" id="generateBtn" disabled>🚀 Upload Files to Start</button>
         <div class="status" id="status"></div>
     </div>
 

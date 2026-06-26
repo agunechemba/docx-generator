@@ -8,18 +8,19 @@ const templateStatus = document.getElementById('templateStatus');
 const dataStatus = document.getElementById('dataStatus');
 const generateBtn = document.getElementById('generateBtn');
 const statusDiv = document.getElementById('status');
+const templateDrop = document.getElementById('templateDrop');
+const dataDrop = document.getElementById('dataDrop');
 
-// Handle Template uploads
 templateInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     templateBuffer = await file.arrayBuffer();
     templateName = file.name.replace('.docx', '');
     templateStatus.textContent = `✅ Loaded: ${file.name}`;
+    templateDrop.classList.add('has-file');
     checkReadyState();
 });
 
-// Handle Data spreadsheet uploads
 dataInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -37,7 +38,8 @@ dataInput.addEventListener('change', async (e) => {
         }
 
         if (csvData.length === 0) throw new Error('File is empty.');
-        dataStatus.textContent = `✅ Loaded: ${csvData.length} records`;
+        dataStatus.textContent = `✅ Loaded: ${csvData.length} rows`;
+        dataDrop.classList.add('has-file');
         checkReadyState();
     } catch (err) {
         dataStatus.textContent = `❌ Error: ${err.message}`;
@@ -46,21 +48,24 @@ dataInput.addEventListener('change', async (e) => {
 
 function checkReadyState() {
     generateBtn.disabled = !(templateBuffer && csvData.length > 0);
+    if (templateBuffer && csvData.length > 0) {
+        generateBtn.textContent = '🚀 Generate Documents';
+    }
 }
 
-// Processing Core Engine Loop
 generateBtn.addEventListener('click', () => {
-    // Fail-safe namespace selector
     const Engine = window.Docxtemplater || window.docxtemplater;
     const ZipEngine = window.PizZip || window.pizzip;
 
-    if (!Engine || !ZipEngine) {
+    if (!Engine || !ZipEngine || !window.saveAs) {
         statusDiv.style.display = 'block';
-        statusDiv.textContent = '❌ Core engines failed to load. Please verify your connection.';
+        statusDiv.className = 'status error';
+        statusDiv.textContent = '❌ Engine tracking fault. Please clear your browser cache and refresh.';
         return;
     }
 
     statusDiv.style.display = 'block';
+    statusDiv.className = 'status';
     statusDiv.textContent = '📦 Compiling separate documents into ZIP archive...';
     generateBtn.disabled = true;
 
@@ -85,13 +90,29 @@ generateBtn.addEventListener('click', () => {
             });
 
             const finalZip = exportZip.generate({ type: 'blob' });
-            saveAs(finalZip, `${templateName}_archive.zip`);
+            window.saveAs(finalZip, `${templateName}_archive.zip`);
             
             statusDiv.textContent = '✅ Success! ZIP archive downloaded.';
         } catch (error) {
+            statusDiv.className = 'status error';
             statusDiv.textContent = `❌ Error: ${error.message}`;
         } finally {
             generateBtn.disabled = false;
         }
     }, 100);
+});
+
+// Drag & Drop Styling Listeners
+[templateDrop, dataDrop].forEach(section => {
+    section.addEventListener('dragover', (e) => { e.preventDefault(); section.style.background = '#f0f4ff'; });
+    section.addEventListener('dragleave', () => { section.style.background = section.classList.contains('has-file') ? '#f0fff4' : '#f7fafc'; });
+    section.addEventListener('drop', (e) => {
+        e.preventDefault();
+        section.style.background = '#f7fafc';
+        const input = section.querySelector('input[type="file"]');
+        if (e.dataTransfer.files.length) {
+            input.files = e.dataTransfer.files;
+            input.dispatchEvent(new Event('change'));
+        }
+    });
 });
