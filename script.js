@@ -29,14 +29,21 @@ function loadScript(lib) {
 }
 
 // Sequential Execution Wrapper to prevent race conditions during runtime hook
+// Sequential Execution Wrapper to prevent race conditions during runtime hook
 async function initializeDependencies() {
     const overlay = document.getElementById('appInitOverlay');
     try {
         for (const lib of LIBRARIES) {
             await loadScript(lib);
         }
+        
+        // Normalize Docxtemplater global namespace if it loaded under lowercase names
+        if (typeof window.docxtemplater !== 'undefined' && typeof window.Docxtemplater === 'undefined') {
+            window.Docxtemplater = window.docxtemplater;
+        }
+        
         // Verify globals are populated
-        if (typeof XLSX === 'undefined' || typeof PizZip === 'undefined' || typeof Docxtemplater === 'undefined') {
+        if (typeof XLSX === 'undefined' || typeof PizZip === 'undefined' || typeof window.Docxtemplater === 'undefined') {
             throw new Error("Context isolation check failed. Dependencies missing from Window stack.");
         }
         
