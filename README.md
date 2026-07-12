@@ -1,27 +1,24 @@
-# AutoCrat Custom Hub: Single-Doc Generator
+# Doc Merger: Batch Generator 🚀
 
-A lightweight, open-source document merging web application hosted entirely on GitHub Pages. It connects seamlessly to a Google Apps Script backend API to read row data from a Google Sheet and compile it into a single, beautifully formatted master Google Doc with dynamic page breaks.
+An elegant, client-side web application designed to parse rows from a Google Sheet and dynamically generate individual, perfectly styled Google Documents based on a master template. 
 
-Unlike standard tools that generate hundreds of individual files, this tool consolidates everything into **one master document**, keeping your Google Drive organized.
-
----
-
-## 🚀 Features
-
-* **Consolidated Output:** Merges multiple data rows into a single Google Doc file instead of cluttering your Drive.
-* **Dynamic Template Layouts:** Preserves your original text styles, tables, lists, and formatting.
-* **Serverless Frontend:** Hosted 100% free on GitHub Pages.
-* **Simple Mapping Engine:** Uses the classic `<<HeaderName>>` tag syntax to automatically detect where data should go.
+By isolating each row into its own file, this tool completely bypasses Google Docs REST API formatting limitations—guaranteeing **100% preservation** of your template's layout, custom fonts, tables, cell borders, alignment, and background colors.
 
 ---
 
-## 📂 Project Architecture
+## ✨ Features
 
-```text
-  [ GitHub Pages Frontend ] 
-            │  (Secure JSON POST Request)
-            ▼
-  [ Google Apps Script Web App ]
-            │  (Accesses via Link Sharing)
-            ├──► Reads [ Google Sheet Data ]
-            └──► Clones & Appends [ Google Doc Template ] ──► Saves Master Doc File
+*   **Pixel-Perfect Formatting:** Zero style degradation. Tables, borders, fills, and margins remain exactly as designed in your template.
+*   **Automatic Organization:** Every execution dynamically creates a uniquely timestamped destination folder in your Google Drive to hold the generated files.
+*   **Real-time Progress Tracker:** Watch the application securely initialize the OAuth handshake, read the sheet arrays, and process each row sequentially.
+*   **Built with Modern Tech:** Styled with Tailwind CSS, built with vanilla JavaScript, and powered securely by the official Google Identity Services (GSI) Client Library.
+
+---
+
+## 📋 How It Works
+
+1.  **Template Injection:** The script uses your original Google Doc template as a structural baseline.
+2.  **Isolated Cloning:** For every row in your spreadsheet, the tool makes an exact clone of the template directly inside a new batch output folder.
+3.  **In-Place Text Swapping:** It uses the cloud-native `replaceAllText` method to instantly swap markers (e.g., `<<Student_Name>>`) with row data without touching the table cells' structural styling properties.
+
+---
