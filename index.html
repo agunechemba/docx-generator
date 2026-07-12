@@ -158,7 +158,7 @@
         const newFile = await cloneResp.json();
         const masterDocId = newFile.id;
 
-        // Process First Row directly on base copy
+// 1. Process the First Row directly on the master copy
         updateProgress("Populating baseline document row entry...");
         let firstRowRequests = [];
         for (let j = 0; j < headers.length; j++) {
@@ -176,6 +176,94 @@
             body: JSON.stringify({ requests: firstRowRequests })
           });
         }
+
+        // 2. Process remaining rows by creating quick temporary copies and appending their content
+        for (let i = 2; i < sheetData.length; i++) {
+          updateProgress(`Processing student report ${i} of ${sheetData.length - 1}...`);
+
+          // Step A: Create a quick temporary copy of the baseline template
+          const tempCopyResp = await fetch(`https://www.googleapis.com/drive/v3/files/${templateId}/copy`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: `Temp_Row_${i}`, parents: [parentFolderId] })
+          });
+          const tempFile = await tempCopyResp.json();
+          const tempDocId = tempFile.id;
+
+          // Step B: Replace all tags (including inside tables) perfectly using replaceAllText on the temp file
+          let tempRequests = [];
+          for (let j = 0; j < headers.length; j++) {
+            tempRequests.push({
+              replaceAllText: {
+                containsText: { text: `<<${headers[j]}>>`, matchCase: true },
+                replaceText: sheetData[i][j] !== undefined ? sheetData[i][j].toString() : ''
+              }
+            });
+          }
+          
+          await fetch(`https://docs.googleapis.com/v1/documents/${tempDocId}:batchUpdate`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ requests: tempRequests })
+          });
+
+          // Step C: Fetch the fully compiled structural elements of this specific student's card
+          const compiledDocResp = await fetch(`https://docs.googleapis.com/v1/documents/${tempDocId}`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+          });
+          const compiledDocData = await compiledDocResp.json();
+          const compiledElements = compiledDocData.body.content;
+
+          // Step D: Append a page break to the master document first, then append the elements
+          let appendRequests = [{ insertPageBreak: { endOfSegmentLocation: {} } }];
+
+          compiledElements.forEach(el => {
+            if (el.paragraph) {
+              const text = el.paragraph.elements.map(e => e.textRun ? e.textRun.content : '').join('');
+              if (text && text !== '\n') {
+                appendRequests.push({ insertText: { endOfSegmentLocation: {}, text: text } });
+              }
+            } else if (el.table) {
+              // Now we can safely drop structural tables in since the values are already baked into them!
+              appendRequests.push({
+                insertTable: {
+                  endOfSegmentLocation: {},
+                  rows: el.table.rows,
+                  columns: el.table.columns
+                }
+              });
+              
+              // Map the text back sequentially into the clean slots
+              el.table.tableRows.forEach((row) => {
+                row.tableCells.forEach((cell) => {
+                  cell.content.forEach(cellContent => {
+                    if (cellContent.paragraph) {
+                      let cellText = cellContent.paragraph.elements.map(e => e.textRun ? e.textRun.content : '').join('');
+                      if (cellText.trim()) {
+                        appendRequests.push({ insertText: { endOfSegmentLocation: {}, text: cellText.replace('\n', '') } });
+                      }
+                    }
+                  });
+                });
+              });
+            }
+          });
+
+          // Execute append to master
+          await fetch(`https://docs.googleapis.com/v1/documents/${masterDocId}:batchUpdate`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ requests: appendRequests })
+          });
+
+          // Step E: Delete the temporary file so it doesn't clutter User X's Google Drive
+          await fetch(`https://www.googleapis.com/drive/v3/files/${tempDocId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+          });
+        }
+
+        // Keep the rest of your original display success logic right below...
 
         // Loop through remaining rows sequentially using structural appends
         for (let i = 2; i < sheetData.length; i++) {
