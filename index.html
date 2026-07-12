@@ -23,7 +23,7 @@
     <div class="mb-6">
       <h1 class="text-2xl font-bold text-slate-800">Doc Merger</h1>
       <p class="text-sm text-slate-500 mt-1">
-        Compile all sheet entries into a single master document file in your own Drive. 
+        Compile all sheet entries into a single master document file. 
         <a href="https://agunechemba.name.ng/2026/07/12/doc-merger.html" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:text-indigo-700 underline font-medium ml-1">
           Learn how to use this app
         </a>
@@ -31,10 +31,13 @@
     </div>
 
     <form id="mergeForm" onsubmit="handleSubmit(event)" class="space-y-5">
+      <input type="hidden" id="webAppUrl" value="YOUR_NEW_APPS_SCRIPT_URL_HERE">
+
       <div>
         <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-2">Google Sheet Data URL</label>
         <input type="url" id="sheetUrl" required placeholder="https://docs.google.com/spreadsheets/d/..." 
                class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+        <p class="text-[11px] text-slate-400 mt-1">Ensure link sharing configuration is set to "Anyone with link can view".</p>
       </div>
 
       <div>
@@ -45,48 +48,25 @@
 
       <button type="submit" id="submitBtn" 
               class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg shadow transition duration-150 flex justify-center items-center gap-2 text-sm">
-        <span>Sign in & Execute Compilation</span>
+        <span>Execute Compilation</span>
       </button>
     </form>
 
     <div id="loadingState" class="hidden mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100 flex items-center gap-3 text-sm text-blue-700">
       <div class="loader"></div>
-      <span id="loadingMessage">Initializing authorization handshake...</span>
+      <span>Extracting structural objects and compiling single file document with styles...</span>
     </div>
 
     <div id="feedbackBox" class="hidden mt-6 p-4 rounded-lg border text-sm"></div>
   </div>
 
-  <!-- Load Google Identity Services Client Libraries -->
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>
-    // ⚠️ REPLACE WITH YOUR OAUTH CLIENT ID FROM GOOGLE CLOUD CONSOLE
-    const CLIENT_ID = '403089530914-8qpqlnfi8f0l2ephvm1ubqsebqagcolh.apps.googleusercontent.com';
-    const SCOPES = 'https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/drive';
-    
-    let tokenClient;
-    let accessToken = null;
-
-    function getIdFromUrl(url) {
-      const matches = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
-      if (matches && matches.length > 1) return matches[1];
-      throw new Error('Invalid Google link format provided.');
-    }
-
-    window.onload = function () {
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: '', 
-      });
-    };
-
-    function updateProgress(message) {
-      document.getElementById('loadingMessage').innerText = message;
-    }
-
     async function handleSubmit(event) {
       event.preventDefault();
+
+      const webAppUrl = document.getElementById('webAppUrl').value.trim();
+      const sheetUrl = document.getElementById('sheetUrl').value.trim();
+      const templateUrl = document.getElementById('templateUrl').value.trim();
       
       const submitBtn = document.getElementById('submitBtn');
       const loadingState = document.getElementById('loadingState');
@@ -98,65 +78,32 @@
       submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
 
       try {
-        const sheetId = getIdFromUrl(document.getElementById('sheetUrl').value.trim());
-        const templateId = getIdFromUrl(document.getElementById('templateUrl').value.trim());
+        const response = await fetch(webAppUrl, {
+          method: 'POST',
+          mode: 'cors',
+          body: JSON.stringify({ sheetUrl, templateUrl })
+        });
 
-        // 1. Request OAuth2 Access Token via Identity Popup window
-        updateProgress("Connecting securely to your Google Account...");
-        accessToken = await getValidToken();
-
-        // 2. Fetch sheet row array grid data natively
-        updateProgress("Reading spreadsheet rows...");
-        const sheetData = await fetchSpreadsheetRows(sheetId);
-        if (!sheetData || sheetData.length <= 1) {
-          throw new Error('No data rows found in the sheet template structure.');
-        }
-
-        const headers = sheetData[0];
-        updateProgress("Locating template destination folders...");
-        const parentFolderId = await getTemplateParentFolder(templateId);
-
-        // 3. Clone Base Template to build Master Target File inside user space
-        updateProgress("Instantiating master document copy...");
-        const masterTitle = "Combined Merged Report - " + new Date().toISOString().split('T')[0];
-        const masterDocId = await cloneFile(templateId, masterTitle, parentFolderId);
-
-        // 4. Map index 1 dataset row content directly across page 1
-        updateProgress("Populating baseline document row entry...");
-        let baseBodyElements = await getDocumentBodyElements(masterDocId);
-        let firstRowRequests = buildReplacementBatch(headers, sheetData[1]);
-        await sendBatchUpdate(masterDocId, firstRowRequests);
-
-        // 5. Query layout child tags structural elements loop array
-        const templateElements = await getDocumentBodyElements(templateId);
-
-        for (let i = 2; i < sheetData.length; i++) {
-          updateProgress(`Appending row entry ${i} of ${sheetData.length - 1}...`);
-          
-          // Append a new document page break
-          await sendBatchUpdate(masterDocId, [{ insertPageBreak: { endOfSegmentLocation: {} } }]);
-
-          // Duplicate structural text configurations
-          const structuralRequests = buildTemplateCloningRequests(templateElements);
-          await sendBatchUpdate(masterDocId, structuralRequests);
-
-          // Build string text index search arrays
-          const replacementRequests = buildReplacementBatch(headers, sheetData[i]);
-          await sendBatchUpdate(masterDocId, replacementRequests);
-        }
+        const result = await response.json();
 
         loadingState.classList.add('hidden');
         submitBtn.disabled = false;
         submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
         feedbackBox.classList.remove('hidden');
-        feedbackBox.className = "mt-6 p-4 rounded-lg border bg-green-50 text-green-800 border-green-200 text-sm flex flex-col gap-2";
-        feedbackBox.innerHTML = `
-          <strong>Process Complete!</strong>
-          <p>Successfully compiled all entries into a single file directly inside your own Google Drive.</p>
-          <a href="https://docs.google.com/document/d/${masterDocId}/edit" target="_blank" class="mt-2 text-center bg-green-600 text-white font-medium py-2 px-3 rounded-md hover:bg-green-700 transition inline-block text-xs">
-            Open Your Master Document
-          </a>
-        `;
+
+        if (result.success) {
+          feedbackBox.className = "mt-6 p-4 rounded-lg border bg-green-50 text-green-800 border-green-200 text-sm flex flex-col gap-2";
+          feedbackBox.innerHTML = `
+            <strong>Process Complete!</strong>
+            <p>${result.message}</p>
+            <a href="${result.fileUrl}" target="_blank" class="mt-2 text-center bg-green-600 text-white font-medium py-2 px-3 rounded-md hover:bg-green-700 transition inline-block text-xs">
+              Open Master Document File
+            </a>
+          `;
+        } else {
+          feedbackBox.className = "mt-6 p-4 rounded-lg border bg-amber-50 text-amber-800 border-amber-200 text-sm";
+          feedbackBox.innerText = "Application Error: " + result.message;
+        }
 
       } catch (error) {
         loadingState.classList.add('hidden');
@@ -164,96 +111,8 @@
         submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
         feedbackBox.classList.remove('hidden');
         feedbackBox.className = "mt-6 p-4 rounded-lg border bg-red-50 text-red-800 border-red-200 text-sm";
-        feedbackBox.innerText = "Execution Error: " + error.message;
+        feedbackBox.innerText = "Network Error connection failure checkpoint instance.";
       }
-    }
-
-    function getValidToken() {
-      return new Promise((resolve, reject) => {
-        tokenClient.callback = (response) => {
-          if (response.error) reject(new Error(response.error));
-          resolve(response.access_token);
-        };
-        tokenClient.requestAccessToken({ prompt: 'consent' });
-      });
-    }
-
-    async function fetchSpreadsheetRows(sheetId) {
-      const metaResp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}`, {
-        headers: { 'Authorization': `Bearer ${accessToken}` }
-      });
-      if (!metaResp.ok) throw new Error("Could not access sheet link target. Confirm file tracking values configuration.");
-      const metaData = await metaResp.json();
-      const tabName = metaData.sheets[0].properties.title;
-
-      const dataResp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(tabName)}!A1:Z1000`, {
-        headers: { 'Authorization': `Bearer ${accessToken}` }
-      });
-      const dataJson = await dataResp.json();
-      return dataJson.values;
-    }
-
-    async function getTemplateParentFolder(templateId) {
-      const resp = await fetch(`https://www.googleapis.com/drive/v3/files/${templateId}?fields=parents`, {
-        headers: { 'Authorization': `Bearer ${accessToken}` }
-      });
-      const fileMeta = await resp.json();
-      return (fileMeta.parents && fileMeta.parents.length > 0) ? fileMeta.parents[0] : 'root';
-    }
-
-    async function cloneFile(fileId, title, folderId) {
-      const resp = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/copy`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: title, parents: [folderId] })
-      });
-      const newFile = await resp.json();
-      return newFile.id;
-    }
-
-    async function getDocumentBodyElements(docId) {
-      const resp = await fetch(`https://docs.googleapis.com/v1/documents/${docId}`, {
-        headers: { 'Authorization': `Bearer ${accessToken}` }
-      });
-      const docData = await resp.json();
-      return docData.body.content;
-    }
-
-    function buildTemplateCloningRequests(elements) {
-      const requests = [];
-      elements.forEach(el => {
-        if (el.paragraph) {
-          const text = el.paragraph.elements.map(e => e.textRun ? e.textRun.content : '').join('');
-          if (text && text !== '\n') {
-            requests.push({ insertText: { endOfSegmentLocation: {}, text: text } });
-          }
-        }
-      });
-      return requests;
-    }
-
-    function buildReplacementBatch(headers, rowData) {
-      const requests = [];
-      for (let j = 0; j < headers.length; j++) {
-        const tag = `<<${headers[j]}>>`;
-        const val = rowData[j] !== undefined ? rowData[j].toString() : '';
-        requests.push({
-          replaceAllText: {
-            containsText: { text: tag, matchCase: true },
-            replaceText: val
-          }
-        });
-      }
-      return requests;
-    }
-
-    async function sendBatchUpdate(docId, requests) {
-      if (requests.length === 0) return;
-      await fetch(`https://docs.googleapis.com/v1/documents/${docId}:batchUpdate`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requests })
-      });
     }
   </script>
 </body>
