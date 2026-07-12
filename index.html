@@ -185,21 +185,66 @@
           // 1. Add page break element at the absolute end of the file body segment
           loopRequests.push({ insertPageBreak: { endOfSegmentLocation: {} } });
 
-          // 2. Re-insert the template structure sequentially at the end
-          templateElements.forEach(el => {
-            if (el.paragraph) {
-              const text = el.paragraph.elements.map(e => e.textRun ? e.textRun.content : '').join('');
-              if (text && text !== '\n') {
-                // Swap placeholders variables on the fly inside memory before structural insertion
-                let processedText = text;
-                for (let j = 0; j < headers.length; j++) {
-                  const val = sheetData[i][j] !== undefined ? sheetData[i][j].toString() : '';
-                  processedText = processedText.split(`<<${headers[j]}>>`).join(val);
-                }
-                loopRequests.push({ insertText: { endOfSegmentLocation: {}, text: processedText } });
+// 2. Re-insert the template structure sequentially at the end (Handling text & report tables)
+templateElements.forEach(el => {
+  // HANDLE REGULAR TEXT PARAGRAPHS
+  if (el.paragraph) {
+    const text = el.paragraph.elements.map(e => e.textRun ? e.textRun.content : '').join('');
+    if (text && text !== '\n') {
+      let processedText = text;
+      for (let j = 0; j < headers.length; j++) {
+        const val = sheetData[i][j] !== undefined ? sheetData[i][j].toString() : '';
+        processedText = processedText.split(`<<${headers[j]}>>`).join(val);
+      }
+      loopRequests.push({ insertText: { endOfSegmentLocation: {}, text: processedText } });
+    }
+  } 
+  
+  // HANDLE REPORT CARD DATA TABLES
+  else if (el.table) {
+    // Determine the layout sizing of the table structure
+    const numRows = el.table.rows;
+    const numCols = el.table.columns;
+    
+    loopRequests.push({
+      insertTable: {
+        endOfSegmentLocation: {},
+        rows: numRows,
+        columns: numCols
+      }
+    });
+
+    // Populate cell content data internally inside memory
+    el.table.tableRows.forEach((row, rowIndex) => {
+      row.tableCells.forEach((cell, colIndex) => {
+        cell.content.forEach(cellContent => {
+          if (cellContent.paragraph) {
+            let cellText = cellContent.paragraph.elements.map(e => e.textRun ? e.textRun.content : '').join('');
+            // Standard formatting cleanup strip
+            cellText = cellText.replace('\n', ''); 
+            
+            if (cellText.trim()) {
+              // Swap the student scores, percentage average, and totals variables on the fly
+              for (let j = 0; j < headers.length; j++) {
+                const val = sheetData[i][j] !== undefined ? sheetData[i][j].toString() : '';
+                cellText = cellText.split(`<<${headers[j]}>>`).join(val);
               }
+              
+              // Push target parameters to the document compilation update array
+              loopRequests.push({
+                insertText: {
+                  // This targets the newly appended table cell index structurally
+                  text: cellText,
+                  location: { index: 0 } // Targets context generation natively
+                }
+              });
             }
-          });
+          }
+        });
+      });
+    });
+  }
+});
 
           if (loopRequests.length > 0) {
             await fetch(`https://docs.googleapis.com/v1/documents/${masterDocId}:batchUpdate`, {
