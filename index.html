@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Doc Merger</title>
+  <title>Doc Merger - Batch Generator</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     .loader {
@@ -21,9 +21,9 @@
 
   <div class="w-full max-w-lg bg-white rounded-xl shadow-lg border border-slate-200 p-8">
     <div class="mb-6">
-      <h1 class="text-2xl font-bold text-slate-800">Doc Merger</h1>
+      <h1 class="text-2xl font-bold text-slate-800">Doc Batch Generator</h1>
       <p class="text-sm text-slate-500 mt-1">
-        Compile all sheet entries into a single master document file in your own Drive. 
+        Generate perfectly styled individual documents for every row into a dedicated Drive folder. 
         <a href="https://agunechemba.name.ng/2026/07/12/doc-merger.html" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:text-indigo-700 underline font-medium ml-1">
           Learn how to use this app
         </a>
@@ -45,7 +45,7 @@
 
       <button type="submit" id="submitBtn" 
               class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg shadow transition duration-150 flex justify-center items-center gap-2 text-sm">
-        <span>Sign in & Execute Compilation</span>
+        <span>Sign in & Execute Generation</span>
       </button>
     </form>
 
@@ -60,7 +60,6 @@
   <!-- Load official Google Client Library -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>
-    // ⚠️ PASTE YOUR EXACT GOOGLE OAUTH CLIENT ID HERE
     const CLIENT_ID = '403089530914-8qpqlnfi8f0l2ephvm1ubqsebqagcolh.apps.googleusercontent.com';
     const SCOPES = 'https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/drive';
     
@@ -141,131 +140,70 @@
         const fileMeta = await driveMetaResp.json();
         const parentFolderId = (fileMeta.parents && fileMeta.parents.length > 0) ? fileMeta.parents[0] : 'root';
 
-        updateProgress("Instantiating master document copy...");
-        const masterTitle = "Combined Merged Report - " + new Date().toISOString().split('T')[0];
-        const cloneResp = await fetch(`https://www.googleapis.com/drive/v3/files/${templateId}/copy`, {
+        // Create a unique destination folder for this batch execution
+        updateProgress("Creating batch output folder...");
+        const folderTitle = "Merged Documents Batch - " + new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '');
+        const folderResp = await fetch(`https://www.googleapis.com/drive/v3/files`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: masterTitle, parents: [parentFolderId] })
+          body: JSON.stringify({
+            name: folderTitle,
+            mimeType: 'application/vnd.google-apps.folder',
+            parents: [parentFolderId]
+          })
         });
-        const newFile = await cloneResp.json();
-        const masterDocId = newFile.id;
+        const newFolder = await folderResp.json();
+        const outputFolderId = newFolder.id;
 
-        // 1. Process the First Row directly on the master copy
-        updateProgress("Populating baseline report card entry...");
-        let baseRequests = [];
-        for (let j = 0; j < headers.length; j++) {
-          baseRequests.push({
-            replaceAllText: {
-              containsText: { text: `<<${headers[j]}>>`, matchCase: true },
-              replaceText: sheetData[1][j] !== undefined ? sheetData[1][j].toString() : ''
-            }
-          });
-        }
-        if (baseRequests.length > 0) {
-          await fetch(`https://docs.googleapis.com/v1/documents/${masterDocId}:batchUpdate`, {
+        // Loop through all data rows and create beautifully isolated documents
+        for (let i = 1; i < sheetData.length; i++) {
+          // Assume the first column contains a identifying name (e.g., Student Name)
+          const rowIdentifier = sheetData[i][0] || `Row_${i}`;
+          updateProgress(`Generating styled file for ${rowIdentifier} (${i} of ${sheetData.length - 1})...`);
+
+          // Step 1: Clone the template into our new batch folder
+          const copyResp = await fetch(`https://www.googleapis.com/drive/v3/files/${templateId}/copy`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ requests: baseRequests })
+            body: JSON.stringify({ 
+              name: `Report - ${rowIdentifier}`, 
+              parents: [outputFolderId] 
+            })
           });
-        }
+          const newFile = await copyResp.json();
+          const studentDocId = newFile.id;
 
-        // 2. Loop through remaining students sequentially using Document Stitching
-        for (let i = 2; i < sheetData.length; i++) {
-          const studentName = sheetData[i][0] || `Student_${i}`;
-          updateProgress(`Compiling fully formatted layout for ${studentName} (${i} of ${sheetData.length - 1})...`);
-
-          // Step A: Create an isolated copy of the template for this student
-          const studentCopyResp = await fetch(`https://www.googleapis.com/drive/v3/files/${templateId}/copy`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: `Temp_Report_${i}`, parents: [parentFolderId] })
-          });
-          const studentFile = await studentCopyResp.json();
-          const studentDocId = studentFile.id;
-
-          // Step B: Replace all markers globally on the temp file (handles tables perfectly)
-          let studentRequests = [];
+          // Step 2: Use native replaceAllText (works flawlessly inside styled tables because it updates text in-place)
+          let replaceRequests = [];
           for (let j = 0; j < headers.length; j++) {
-            studentRequests.push({
+            replaceRequests.push({
               replaceAllText: {
                 containsText: { text: `<<${headers[j]}>>`, matchCase: true },
                 replaceText: sheetData[i][j] !== undefined ? sheetData[i][j].toString() : ''
               }
             });
           }
-          
-          await fetch(`https://docs.googleapis.com/v1/documents/${studentDocId}:batchUpdate`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ requests: studentRequests })
-          });
 
-          // Step C: Fetch the finished layout structure and map it safely into the compilation arrays
-          let fallbackAppendRequests = [{ insertPageBreak: { endOfSegmentLocation: {} } }];
-          
-          const freshDocResp = await fetch(`https://docs.googleapis.com/v1/documents/${studentDocId}`, {
-            headers: { 'Authorization': `Bearer ${accessToken}` }
-          });
-          const freshDocData = await freshDocResp.json();
-          
-          freshDocData.body.content.forEach(el => {
-            if (el.paragraph) {
-              const text = el.paragraph.elements.map(e => e.textRun ? e.textRun.content : '').join('');
-              if (text && text !== '\n') {
-                fallbackAppendRequests.push({ insertText: { endOfSegmentLocation: {}, text: text } });
-              }
-            } else if (el.table) {
-              // Appends the finished, pre-filled grid with zero structural calculation conflicts
-              fallbackAppendRequests.push({
-                insertTable: {
-                  endOfSegmentLocation: {},
-                  rows: el.table.rows,
-                  columns: el.table.columns
-                }
-              });
-              
-              el.table.tableRows.forEach((row) => {
-                row.tableCells.forEach((cell) => {
-                  let cellCombinedText = "";
-                  cell.content.forEach(cellContent => {
-                    if (cellContent.paragraph) {
-                      cellCombinedText += cellContent.paragraph.elements.map(e => e.textRun ? e.textRun.content : '').join('');
-                    }
-                  });
-                  if (cellCombinedText.trim()) {
-                    fallbackAppendRequests.push({ insertText: { endOfSegmentLocation: {}, text: cellCombinedText.replace('\n', '') } });
-                  }
-                });
-              });
-            }
-          });
-
-          // Push the structural updates directly to the master report file 
-          await fetch(`https://docs.googleapis.com/v1/documents/${masterDocId}:batchUpdate`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ requests: fallbackAppendRequests })
-          });
-
-          // Step D: Delete the isolated temporary file to preserve user space constraints
-          await fetch(`https://www.googleapis.com/drive/v3/files/${studentDocId}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${accessToken}` }
-          });
+          if (replaceRequests.length > 0) {
+            await fetch(`https://docs.googleapis.com/v1/documents/${studentDocId}:batchUpdate`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ requests: replaceRequests })
+            });
+          }
         }
 
-        // --- Success UI Notification Rendering Block ---
+        // --- Display Success Interface UI ---
         loadingState.classList.add('hidden');
         submitBtn.disabled = false;
         submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
         feedbackBox.classList.remove('hidden');
         feedbackBox.className = "mt-6 p-4 rounded-lg border bg-green-50 text-green-800 border-green-200 text-sm flex flex-col gap-2";
         feedbackBox.innerHTML = `
-          <strong>Compilation Complete!</strong>
-          <p>Successfully processed data and generated distinct report card structures for all entries inside a single file.</p>
-          <a href="https://docs.google.com/document/d/${masterDocId}/edit" target="_blank" class="mt-2 text-center bg-green-600 text-white font-medium py-2 px-3 rounded-md hover:bg-green-700 transition inline-block text-xs">
-            Open Your Master Document
+          <strong>Batch Generation Complete!</strong>
+          <p>Successfully created individual, perfectly formatted documents for all rows inside a new folder.</p>
+          <a href="https://drive.google.com/drive/folders/${outputFolderId}" target="_blank" class="mt-2 text-center bg-blue-600 text-white font-medium py-2 px-3 rounded-md hover:bg-blue-700 transition inline-block text-xs">
+            Open Output Folder
           </a>
         `;
 
