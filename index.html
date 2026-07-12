@@ -5,17 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Doc Merger</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    .loader {
-      border: 3px solid #f3f3f3;
-      border-top: 3px solid #2563eb;
-      border-radius: 50%;
-      width: 20px;
-      height: 20px;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-  </style>
 </head>
 <body class="bg-slate-50 min-h-screen flex items-center justify-center p-6">
 
@@ -23,97 +12,34 @@
     <div class="mb-6">
       <h1 class="text-2xl font-bold text-slate-800">Doc Merger</h1>
       <p class="text-sm text-slate-500 mt-1">
-        Compile all sheet entries into a single master document file. 
+        Compile all sheet entries into a single master document file in your own Drive. 
         <a href="https://agunechemba.name.ng/2026/07/12/doc-merger.html" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:text-indigo-700 underline font-medium ml-1">
           Learn how to use this app
         </a>
       </p>
     </div>
 
-    <form id="mergeForm" onsubmit="handleSubmit(event)" class="space-y-5">
-      <input type="hidden" id="webAppUrl" value="https://script.google.com/macros/s/AKfycbwPSkadw5JhtvczSvRnkUULtVzr_SKWe1vZX3W42gYw1O3cC6ri6hubSILtBHuL7IOi/exec">
-
+    <!-- We change this to a standard GET submission form -->
+    <form action="https://script.google.com/macros/s/AKfycbwPSkadw5JhtvczSvRnkUULtVzr_SKWe1vZX3W42gYw1O3cC6ri6hubSILtBHuL7IOi/exec" method="GET" target="_blank" class="space-y-5">
+      
       <div>
         <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-2">Google Sheet Data URL</label>
-        <input type="url" id="sheetUrl" required placeholder="https://docs.google.com/spreadsheets/d/..." 
+        <input type="url" name="sheetUrl" required placeholder="https://docs.google.com/spreadsheets/d/..." 
                class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
-        <p class="text-[11px] text-slate-400 mt-1">Ensure link sharing configuration is set to "Anyone with link can view".</p>
       </div>
 
       <div>
         <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-2">Google Doc Template URL</label>
-        <input type="url" id="templateUrl" required placeholder="https://docs.google.com/document/d/..." 
+        <input type="url" name="templateUrl" required placeholder="https://docs.google.com/document/d/..." 
                class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
       </div>
 
-      <button type="submit" id="submitBtn" 
+      <button type="submit" 
               class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg shadow transition duration-150 flex justify-center items-center gap-2 text-sm">
-        <span>Execute Compilation</span>
+        <span>Authorize & Execute Compilation</span>
       </button>
     </form>
-
-    <div id="loadingState" class="hidden mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100 flex items-center gap-3 text-sm text-blue-700">
-      <div class="loader"></div>
-      <span>Extracting structural objects and compiling single file document with styles...</span>
-    </div>
-
-    <div id="feedbackBox" class="hidden mt-6 p-4 rounded-lg border text-sm"></div>
   </div>
 
-  <script>
-    async function handleSubmit(event) {
-      event.preventDefault();
-
-      const webAppUrl = document.getElementById('webAppUrl').value.trim();
-      const sheetUrl = document.getElementById('sheetUrl').value.trim();
-      const templateUrl = document.getElementById('templateUrl').value.trim();
-      
-      const submitBtn = document.getElementById('submitBtn');
-      const loadingState = document.getElementById('loadingState');
-      const feedbackBox = document.getElementById('feedbackBox');
-
-      feedbackBox.classList.add('hidden');
-      loadingState.classList.remove('hidden');
-      submitBtn.disabled = true;
-      submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
-
-      try {
-        const response = await fetch(webAppUrl, {
-          method: 'POST',
-          mode: 'cors',
-          body: JSON.stringify({ sheetUrl, templateUrl })
-        });
-
-        const result = await response.json();
-
-        loadingState.classList.add('hidden');
-        submitBtn.disabled = false;
-        submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-        feedbackBox.classList.remove('hidden');
-
-        if (result.success) {
-          feedbackBox.className = "mt-6 p-4 rounded-lg border bg-green-50 text-green-800 border-green-200 text-sm flex flex-col gap-2";
-          feedbackBox.innerHTML = `
-            <strong>Process Complete!</strong>
-            <p>${result.message}</p>
-            <a href="${result.fileUrl}" target="_blank" class="mt-2 text-center bg-green-600 text-white font-medium py-2 px-3 rounded-md hover:bg-green-700 transition inline-block text-xs">
-              Open Master Document File
-            </a>
-          `;
-        } else {
-          feedbackBox.className = "mt-6 p-4 rounded-lg border bg-amber-50 text-amber-800 border-amber-200 text-sm";
-          feedbackBox.innerText = "Application Error: " + result.message;
-        }
-
-      } catch (error) {
-        loadingState.classList.add('hidden');
-        submitBtn.disabled = false;
-        submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-        feedbackBox.classList.remove('hidden');
-        feedbackBox.className = "mt-6 p-4 rounded-lg border bg-red-50 text-red-800 border-red-200 text-sm";
-        feedbackBox.innerText = "Network Error connection failure checkpoint instance.";
-      }
-    }
-  </script>
 </body>
 </html>
