@@ -5,6 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Doc Merger</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .loader {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #2563eb;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
 </head>
 <body class="bg-slate-50 min-h-screen flex items-center justify-center p-6">
 
@@ -19,27 +30,208 @@
       </p>
     </div>
 
-    <!-- We change this to a standard GET submission form -->
-    <form action="https://script.google.com/macros/s/AKfycbwPSkadw5JhtvczSvRnkUULtVzr_SKWe1vZX3W42gYw1O3cC6ri6hubSILtBHuL7IOi/exec" method="GET" target="_blank" class="space-y-5">
-      
+    <form id="mergeForm" onsubmit="handleSubmit(event)" class="space-y-5">
       <div>
         <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-2">Google Sheet Data URL</label>
-        <input type="url" name="sheetUrl" required placeholder="https://docs.google.com/spreadsheets/d/..." 
+        <input type="url" id="sheetUrl" required placeholder="https://docs.google.com/spreadsheets/d/..." 
                class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
       </div>
 
       <div>
         <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-2">Google Doc Template URL</label>
-        <input type="url" name="templateUrl" required placeholder="https://docs.google.com/document/d/..." 
+        <input type="url" id="templateUrl" required placeholder="https://docs.google.com/document/d/..." 
                class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
       </div>
 
-      <button type="submit" 
+      <button type="submit" id="submitBtn" 
               class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg shadow transition duration-150 flex justify-center items-center gap-2 text-sm">
-        <span>Authorize & Execute Compilation</span>
+        <span>Sign in & Execute Compilation</span>
       </button>
     </form>
+
+    <div id="loadingState" class="hidden mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100 flex items-center gap-3 text-sm text-blue-700">
+      <div class="loader"></div>
+      <span id="loadingMessage">Initializing authorization handshake...</span>
+    </div>
+
+    <div id="feedbackBox" class="hidden mt-6 p-4 rounded-lg border text-sm"></div>
   </div>
 
+  <!-- Load official Google Client Library -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script>
+    // ⚠️ PASTE YOUR EXACT GOOGLE OAUTH CLIENT ID HERE
+    const CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+    const SCOPES = 'https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/drive';
+    
+    let tokenClient;
+    let accessToken = null;
+
+    function getIdFromUrl(url) {
+      const matches = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+      if (matches && matches.length > 1) return matches[1];
+      throw new Error('Invalid Google link format configuration.');
+    }
+
+    window.onload = function () {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: '', 
+      });
+    };
+
+    function updateProgress(message) {
+      document.getElementById('loadingMessage').innerText = message;
+    }
+
+    function getValidToken() {
+      return new Promise((resolve, reject) => {
+        tokenClient.callback = (response) => {
+          if (response.error) reject(new Error(response.error));
+          resolve(response.access_token);
+        };
+        tokenClient.requestAccessToken({ prompt: 'consent' });
+      });
+    }
+
+    async function handleSubmit(event) {
+      event.preventDefault();
+      
+      const submitBtn = document.getElementById('submitBtn');
+      const loadingState = document.getElementById('loadingState');
+      const feedbackBox = document.getElementById('feedbackBox');
+
+      feedbackBox.classList.add('hidden');
+      loadingState.classList.remove('hidden');
+      submitBtn.disabled = true;
+      submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+      try {
+        const sheetId = getIdFromUrl(document.getElementById('sheetUrl').value.trim());
+        const templateId = getIdFromUrl(document.getElementById('templateUrl').value.trim());
+
+        updateProgress("Connecting to your Google Account...");
+        accessToken = await getValidToken();
+
+        updateProgress("Reading spreadsheet rows...");
+        const responseSheet = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}`, {
+          headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+        if (!responseSheet.ok) throw new Error("Could not access sheet. Ensure the link matches your logged-in profile access rules.");
+        const metaData = await responseSheet.json();
+        const tabName = metaData.sheets[0].properties.title;
+
+        const dataResp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(tabName)}!A1:Z1000`, {
+          headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+        const dataJson = await dataResp.json();
+        const sheetData = dataJson.values;
+
+        if (!sheetData || sheetData.length <= 1) {
+          throw new Error('No data rows found in the sheet template structure.');
+        }
+
+        const headers = sheetData[0];
+
+        updateProgress("Locating destination folder...");
+        const driveMetaResp = await fetch(`https://www.googleapis.com/drive/v3/files/${templateId}?fields=parents`, {
+          headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+        const fileMeta = await driveMetaResp.json();
+        const parentFolderId = (fileMeta.parents && fileMeta.parents.length > 0) ? fileMeta.parents[0] : 'root';
+
+        updateProgress("Fetching structural template layout elements...");
+        const templateDocResp = await fetch(`https://docs.googleapis.com/v1/documents/${templateId}`, {
+          headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+        const templateDocData = await templateDocResp.json();
+        const templateElements = templateDocData.body.content;
+
+        updateProgress("Instantiating master document copy...");
+        const masterTitle = "Combined Merged Report - " + new Date().toISOString().split('T')[0];
+        const cloneResp = await fetch(`https://www.googleapis.com/drive/v3/files/${templateId}/copy`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: masterTitle, parents: [parentFolderId] })
+        });
+        const newFile = await cloneResp.json();
+        const masterDocId = newFile.id;
+
+        // Process First Row directly on base copy
+        updateProgress("Populating baseline document row entry...");
+        let firstRowRequests = [];
+        for (let j = 0; j < headers.length; j++) {
+          firstRowRequests.push({
+            replaceAllText: {
+              containsText: { text: `<<${headers[j]}>>`, matchCase: true },
+              replaceText: sheetData[1][j] !== undefined ? sheetData[1][j].toString() : ''
+            }
+          });
+        }
+        if (firstRowRequests.length > 0) {
+          await fetch(`https://docs.googleapis.com/v1/documents/${masterDocId}:batchUpdate`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ requests: firstRowRequests })
+          });
+        }
+
+        // Loop through remaining rows sequentially using structural appends
+        for (let i = 2; i < sheetData.length; i++) {
+          updateProgress(`Appending row entry ${i} of ${sheetData.length - 1}...`);
+          let loopRequests = [];
+
+          // 1. Add page break element at the absolute end of the file body segment
+          loopRequests.push({ insertPageBreak: { endOfSegmentLocation: {} } });
+
+          // 2. Re-insert the template structure sequentially at the end
+          templateElements.forEach(el => {
+            if (el.paragraph) {
+              const text = el.paragraph.elements.map(e => e.textRun ? e.textRun.content : '').join('');
+              if (text && text !== '\n') {
+                // Swap placeholders variables on the fly inside memory before structural insertion
+                let processedText = text;
+                for (let j = 0; j < headers.length; j++) {
+                  const val = sheetData[i][j] !== undefined ? sheetData[i][j].toString() : '';
+                  processedText = processedText.split(`<<${headers[j]}>>`).join(val);
+                }
+                loopRequests.push({ insertText: { endOfSegmentLocation: {}, text: processedText } });
+              }
+            }
+          });
+
+          if (loopRequests.length > 0) {
+            await fetch(`https://docs.googleapis.com/v1/documents/${masterDocId}:batchUpdate`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ requests: loopRequests })
+            });
+          }
+        }
+
+        loadingState.classList.add('hidden');
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        feedbackBox.classList.remove('hidden');
+        feedbackBox.className = "mt-6 p-4 rounded-lg border bg-green-50 text-green-800 border-green-200 text-sm flex flex-col gap-2";
+        feedbackBox.innerHTML = `
+          <strong>Process Complete!</strong>
+          <p>Successfully compiled entries into a single file directly inside your own Google Drive.</p>
+          <a href="https://docs.google.com/document/d/${masterDocId}/edit" target="_blank" class="mt-2 text-center bg-green-600 text-white font-medium py-2 px-3 rounded-md hover:bg-green-700 transition inline-block text-xs">
+            Open Your Master Document
+          </a>
+        `;
+
+      } catch (error) {
+        loadingState.classList.add('hidden');
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        feedbackBox.classList.remove('hidden');
+        feedbackBox.className = "mt-6 p-4 rounded-lg border bg-red-50 text-red-800 border-red-200 text-sm";
+        feedbackBox.innerText = "Execution Error: " + error.message;
+      }
+    }
+  </script>
 </body>
 </html>
